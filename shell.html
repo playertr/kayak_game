@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Multiplayer — Seventy48 Kayak Race</title>
+<script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.2/dist/nipplejs.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #060e1a; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; color: white;
+         touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  canvas { display: block; }
+
+  #title-screen, #finish-screen {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 20; pointer-events: all;
+    background: radial-gradient(ellipse at 50% 60%, #0d2137 0%, #060e1a 100%);
+    overflow-y: auto;
+  }
+  #finish-screen { display: none; }
+  #title-screen h1 {
+    font-size: 58px;
+    background: linear-gradient(135deg, #00e5ff, #ff8c00);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
+  }
+  #title-screen .subtitle { font-size: 18px; color: #6a8fa8; margin-bottom: 6px; }
+  #title-screen .route { font-size: 15px; color: #4a7a8f; margin-bottom: 20px; }
+
+  /* Mode selector */
+  .mode-row { display: flex; gap: 16px; margin-bottom: 20px; }
+  .mode-btn {
+    font-size: 16px; padding: 10px 28px; border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 12px; cursor: pointer; font-weight: 600;
+    background: rgba(255,255,255,0.05); color: #8899aa; transition: all 0.15s;
+  }
+  .mode-btn.active { border-color: #00e5ff; color: #00e5ff; background: rgba(0,229,255,0.08); }
+  .mode-btn:hover { border-color: #00e5ff55; }
+
+  .controls-row { display: flex; gap: 50px; margin-bottom: 24px; flex-wrap: wrap; justify-content: center; }
+  .ctrl-box {
+    text-align: center; padding: 14px 22px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+  }
+  .ctrl-box h3 { margin-bottom: 6px; font-size: 16px; }
+  .ctrl-box kbd {
+    display: inline-block; background: rgba(255,255,255,0.15);
+    border-radius: 5px; padding: 3px 9px; margin: 2px;
+    font-family: monospace; font-size: 15px;
+  }
+  .p1c { color: #00e5ff; }
+  .p2c { color: #ff8c00; }
+  #tide-status {
+    font-size: 13px; color: #5a8a5a; margin-bottom: 18px;
+    min-height: 20px;
+  }
+  #start-btn, #restart-btn {
+    font-size: 20px; padding: 12px 44px; border: none; border-radius: 50px;
+    cursor: pointer; font-weight: 700; pointer-events: all;
+    background: linear-gradient(135deg, #00e5ff, #ff8c00);
+    color: #0a1628; transition: transform 0.15s;
+  }
+  #start-btn:hover, #restart-btn:hover { transform: scale(1.06); }
+  #start-btn:disabled { opacity: 0.5; cursor: wait; }
+  .legend {
+    margin-top: 20px; font-size: 12px; display: flex; gap: 18px; color: #667788;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  #hud {
+    position: absolute; top: 8px; left: 0; width: 100%;
+    display: flex; justify-content: space-between; padding: 0 14px;
+    font-size: 13px; z-index: 11; pointer-events: none;
+  }
+  .hud-panel {
+    background: rgba(0,0,0,0.6); border-radius: 8px; padding: 6px 14px;
+    backdrop-filter: blur(4px);
+  }
+  #tide-chart-container {
+    position: absolute; bottom: 10px; right: 10px; z-index: 11; pointer-events: none;
+  }
+
+  #finish-screen h1 {
+    font-size: 48px; margin-bottom: 10px;
+    background: linear-gradient(135deg, #00e5ff, #ff8c00);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  #finish-screen p { font-size: 18px; color: #8899aa; margin-bottom: 24px; white-space: pre-line; }
+  #winner-text { font-size: 26px; margin-bottom: 8px; }
+
+  /* Kayak icon (inline SVG, top-down view) */
+  .kayak-icon {
+    display: inline-block;
+    width: 1.4em; height: 0.6em;
+    vertical-align: middle;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 16'%3E%3Cpath d='M1,8C1,3.5 12,1 24,1S47,3.5 47,8 36,15 24,15 1,12.5 1,8Z' fill='%23e89830' stroke='%237a5010' stroke-width='.8'/%3E%3Cellipse cx='24' cy='8' rx='6' ry='3' fill='%235a3510' opacity='.45'/%3E%3Cline x1='12' y1='1' x2='36' y2='15' stroke='%238b6030' stroke-width='1.2' stroke-linecap='round'/%3E%3Cellipse cx='10.5' cy='0' rx='4' ry='1.6' fill='%23ccc' transform='rotate(20 10.5 0)'/%3E%3Cellipse cx='37.5' cy='16' rx='4' ry='1.6' fill='%23ccc' transform='rotate(20 37.5 16)'/%3E%3C/svg%3E") center/contain no-repeat;
+  }
+
+  /* Joystick zone */
+  #joystick-zone {
+    position: absolute; bottom: 0; left: 0; width: 50%; height: 50%;
+    z-index: 15; display: none;
+  }
+  /* Mobile-specific adjustments */
+  @media (max-width: 768px) {
+    #title-screen h1 { font-size: 36px; }
+    #title-screen .subtitle { font-size: 14px; }
+    #title-screen .route { font-size: 12px; }
+    .ctrl-box { padding: 10px 14px; }
+    .ctrl-box h3 { font-size: 14px; }
+    .controls-row { gap: 20px; }
+    #tide-chart-container { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="title-screen">
+  <h1><span class="kayak-icon"></span> Multiplayer</h1>
+  <div class="subtitle">Seventy48 Kayak Race — Puget Sound</div>
+  <div class="route">Tacoma → Port Townsend &nbsp;|&nbsp; ~70 miles &nbsp;|&nbsp; Real NOAA Tides for May 29, 2026</div>
+
+  <div class="mode-row">
+    <button class="mode-btn active" id="mode-solo" onclick="selectMode('solo')"><span class="kayak-icon"></span> Solo (Double Kayak)</button>
+    <button class="mode-btn" id="mode-multi" onclick="selectMode('multi')"><span class="kayak-icon"></span><span class="kayak-icon"></span> Multiplayer (Two Kayaks)</button>
+  </div>
+
+  <div id="controls-solo" class="controls-row">
+    <div class="ctrl-box">
+      <h3 class="p1c">Tim &amp; Madelyn</h3>
+      <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div>
+      <div style="font-size:12px;color:#667;margin-top:6px">📱 Touch: virtual joystick</div>
+    </div>
+  </div>
+  <div id="controls-multi" class="controls-row" style="display:none">
+    <div class="ctrl-box">
+      <h3 class="p1c">Player 1 — Tim</h3>
+      <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+    </div>
+    <div class="ctrl-box">
+      <h3 class="p2c">Player 2 — Madelyn</h3>
+      <div><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div>
+    </div>
+  </div>
+
+  <div id="tide-status">Loading NOAA tide predictions…</div>
+  <button id="start-btn" disabled onclick="startGame()">Start Race</button>
+  <div class="legend">
+    <span><span class="dot" style="background:#2e7d32"></span> Land</span>
+    <span><span class="dot" style="background:#000"></span> Orcas</span>
+    <span><span class="dot" style="background:#e0e0e0"></span> WSF Ferries</span>
+    <span style="color:#5599bb">→ Tide currents</span>
+  </div>
+</div>
+
+<div id="finish-screen">
+  <h1>🏁 Race Complete!</h1>
+  <div id="winner-text"></div>
+  <p id="finish-times"></p>
+  <button id="restart-btn" onclick="location.reload()">Race Again</button>
+</div>
+
+<div id="hud" style="display:none">
+  <div class="hud-panel" id="hud-p1">
+    <span class="p1c"><span class="kayak-icon"></span> Tim</span>: <span id="p1-progress">0%</span>
+  </div>
+  <div class="hud-panel" style="text-align:center">
+    <span id="race-timer">0:00</span><br>
+    <span id="sim-time" style="font-size:11px;color:#667"></span>
+  </div>
+  <div class="hud-panel" id="hud-p2">
+    <span class="p2c"><span class="kayak-icon"></span> Madelyn</span>: <span id="p2-progress">0%</span>
+  </div>
+</div>
+
+<div id="tide-chart-container" style="display:none">
+  <canvas id="tide-chart" width="240" height="100"></canvas>
+</div>
+
+<div id="joystick-zone"></div>
+
+<canvas id="game"></canvas>
+
+<script>
+// {{BUNDLE}}
+</script>
+</body>
+</html>
