@@ -37,15 +37,23 @@ function getScores() {
     return makeJSON({ scores: [] });
   }
 
-  var scores = [];
+  // Collect all rows, then keep only the best time per name
+  var byName = {};
   for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    scores.push({
-      name:     String(row[0]),
-      realTime: parseFloat(row[1]),
-      gameTime: String(row[2]),
-      date:     String(row[3])
-    });
+    var row  = data[i];
+    var name = String(row[0]);
+    var rt   = parseFloat(row[1]);
+    var gt   = String(row[2]);
+    var dt   = String(row[3]);
+    if (isNaN(rt)) continue;
+    if (!byName[name] || rt < byName[name].realTime) {
+      byName[name] = { name: name, realTime: rt, gameTime: gt, date: dt };
+    }
+  }
+
+  var scores = [];
+  for (var key in byName) {
+    scores.push(byName[key]);
   }
 
   // Sort by realTime ascending (fastest first)
