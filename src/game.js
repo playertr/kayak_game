@@ -116,13 +116,17 @@ function endGame() {
   zone.style.display = 'none';
   if (joystickManager) { joystickManager.destroy(); joystickManager = null; }
 
+  let bestFinishTime = null;
+
   if (gameMode === 'solo') {
     const p = players[0];
-    const t = p.finishTime ? p.finishTime.toFixed(1) + 's' : 'DNF';
+    const rt = p.finishTime ? formatRealTime(p.finishTime) : 'DNF';
+    const gt = p.finishTime ? formatGameWorldTime(p.finishTime) : '—';
     document.getElementById('winner-text').innerHTML =
       '<span class="p1c">🏁 Tim &amp; Madelyn finished!</span>';
-    document.getElementById('finish-times').textContent =
-      `Time: ${t}\nTim's best time was 26.6 seconds.`;
+    document.getElementById('finish-times').innerHTML =
+      `Real time: ${rt}\nGame-world time: ${gt}`;
+    bestFinishTime = p.finishTime || null;
   } else {
     const [p1, p2] = players;
     let wh;
@@ -139,10 +143,20 @@ function endGame() {
     }
     document.getElementById('winner-text').innerHTML = wh;
 
-    const t1 = p1.finishTime ? p1.finishTime.toFixed(1) + 's' : 'DNF';
-    const t2 = p2.finishTime ? p2.finishTime.toFixed(1) + 's' : 'DNF';
-    document.getElementById('finish-times').textContent = `Tim: ${t1}  |  Madelyn: ${t2}`;
+    const rt1 = p1.finishTime ? formatRealTime(p1.finishTime) : 'DNF';
+    const rt2 = p2.finishTime ? formatRealTime(p2.finishTime) : 'DNF';
+    const gt1 = p1.finishTime ? formatGameWorldTime(p1.finishTime) : '—';
+    const gt2 = p2.finishTime ? formatGameWorldTime(p2.finishTime) : '—';
+    document.getElementById('finish-times').innerHTML =
+      `Tim: ${rt1} (${gt1})  |  Madelyn: ${rt2} (${gt2})`;
+    bestFinishTime = Math.min(
+      p1.finishTime || Infinity, p2.finishTime || Infinity
+    );
+    if (bestFinishTime === Infinity) bestFinishTime = null;
   }
+
+  // Fetch and display leaderboard
+  showLeaderboard(bestFinishTime);
 }
 
 function gameLoop(ts) {

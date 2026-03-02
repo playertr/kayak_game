@@ -21,6 +21,7 @@ const SRC_ORDER = [
   'src/land.js',
   'src/entities.js',
   'src/update.js',
+  'src/leaderboard.js',
   'src/render.js',
   'src/game.js',
 ];

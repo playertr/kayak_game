@@ -92,6 +92,17 @@
   #finish-screen p { font-size: 18px; color: #8899aa; margin-bottom: 24px; white-space: pre-line; }
   #winner-text { font-size: 26px; margin-bottom: 8px; }
 
+  /* Leaderboard */
+  .lb-table { border-collapse: collapse; margin: 12px auto; font-size: 13px; }
+  .lb-table th, .lb-table td { padding: 4px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left; }
+  .lb-table th { color: #6a8fa8; font-size: 11px; text-transform: uppercase; }
+  .lb-table tr.lb-you td { color: #00e5ff; font-weight: 700; }
+  .lb-rank { color: #ff8c00; font-size: 14px; margin: 6px 0; }
+  #lb-prompt { margin-top: 10px; }
+  #lb-name { padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: white; font-size: 14px; width: 180px; margin-right: 8px; }
+  #lb-submit-btn { padding: 6px 18px; border-radius: 8px; border: none; background: #00e5ff; color: #0a1628; font-weight: 700; cursor: pointer; font-size: 14px; }
+  #lb-submit-btn:disabled { opacity: 0.5; cursor: default; }
+
   /* Kayak icon (inline SVG, top-down view) */
   .kayak-icon {
     display: inline-block;
@@ -161,7 +172,12 @@
   <h1>🏁 Race Complete!</h1>
   <div id="winner-text"></div>
   <p id="finish-times"></p>
-  <button id="restart-btn" onclick="location.reload()">Race Again</button>
+  <div id="leaderboard"></div>
+  <div id="lb-prompt" style="display:none">
+    <input id="lb-name" type="text" placeholder="Your name" maxlength="40">
+    <button id="lb-submit-btn">Submit Score</button>
+  </div>
+  <button id="restart-btn" onclick="location.reload()" style="margin-top:16px">Race Again</button>
 </div>
 
 <div id="hud" style="display:none">

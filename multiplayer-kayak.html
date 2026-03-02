@@ -92,6 +92,17 @@
   #finish-screen p { font-size: 18px; color: #8899aa; margin-bottom: 24px; white-space: pre-line; }
   #winner-text { font-size: 26px; margin-bottom: 8px; }
 
+  /* Leaderboard */
+  .lb-table { border-collapse: collapse; margin: 12px auto; font-size: 13px; }
+  .lb-table th, .lb-table td { padding: 4px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left; }
+  .lb-table th { color: #6a8fa8; font-size: 11px; text-transform: uppercase; }
+  .lb-table tr.lb-you td { color: #00e5ff; font-weight: 700; }
+  .lb-rank { color: #ff8c00; font-size: 14px; margin: 6px 0; }
+  #lb-prompt { margin-top: 10px; }
+  #lb-name { padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: white; font-size: 14px; width: 180px; margin-right: 8px; }
+  #lb-submit-btn { padding: 6px 18px; border-radius: 8px; border: none; background: #00e5ff; color: #0a1628; font-weight: 700; cursor: pointer; font-size: 14px; }
+  #lb-submit-btn:disabled { opacity: 0.5; cursor: default; }
+
   /* Kayak icon (inline SVG, top-down view) */
   .kayak-icon {
     display: inline-block;
@@ -161,7 +172,12 @@
   <h1>🏁 Race Complete!</h1>
   <div id="winner-text"></div>
   <p id="finish-times"></p>
-  <button id="restart-btn" onclick="location.reload()">Race Again</button>
+  <div id="leaderboard"></div>
+  <div id="lb-prompt" style="display:none">
+    <input id="lb-name" type="text" placeholder="Your name" maxlength="40">
+    <button id="lb-submit-btn">Submit Score</button>
+  </div>
+  <button id="restart-btn" onclick="location.reload()" style="margin-top:16px">Race Again</button>
 </div>
 
 <div id="hud" style="display:none">
@@ -15067,6 +15083,172 @@ function updateCamera() {
 }
 
 
+// ── src/leaderboard.js ──────────────────────────────────────────
+// ====================================================================
+// LEADERBOARD — Fetch scores from Google Sheets, display overlay,
+//               prompt for name and submit
+// ====================================================================
+
+// ── CONFIGURATION ───────────────────────────────────────────────────
+// Replace this URL with your deployed Apps Script web app URL.
+// See scripts/apps-script/Code.gs for setup instructions.
+const LEADERBOARD_URL = 'https://script.google.com/macros/s/AKfycbwjf8LaP731MSRZpcnb7-C_fFuo8O7nvZdtBvtyPmLnxNVOTUH3-LiPMHJBZM0104YE/exec';   // e.g. 'https://script.google.com/macros/s/XXXX/exec'
+
+// ── Formatting helpers ──────────────────────────────────────────────
+
+function formatRealTime(seconds) {
+  // mm:ss.cc
+  if (!seconds || seconds <= 0) return 'DNF';
+  const m  = Math.floor(seconds / 60);
+  const s  = (seconds % 60).toFixed(2).padStart(5, '0');
+  return `${m}:${s}`;
+}
+
+function formatGameWorldTime(realSeconds) {
+  // Convert real seconds → game-world elapsed, then d/h/m/s
+  if (!realSeconds || realSeconds <= 0) return '—';
+  const gameSeconds = realSeconds * TIME_ACCEL;
+  const d = Math.floor(gameSeconds / 86400);
+  const h = Math.floor((gameSeconds % 86400) / 3600);
+  const m = Math.floor((gameSeconds % 3600) / 60);
+  const s = Math.floor(gameSeconds % 60);
+  let parts = [];
+  if (d > 0) parts.push(d + 'd');
+  if (h > 0 || d > 0) parts.push(h + 'h');
+  parts.push(m + 'm');
+  parts.push(s + 's');
+  return parts.join(' ');
+}
+
+// ── Leaderboard logic ───────────────────────────────────────────────
+
+async function fetchLeaderboard() {
+  if (!LEADERBOARD_URL) return [];
+  try {
+    const resp = await fetch(LEADERBOARD_URL);
+    if (!resp.ok) throw new Error(resp.status);
+    const data = await resp.json();
+    return data.scores || [];
+  } catch (e) {
+    console.warn('Leaderboard fetch failed:', e);
+    return [];
+  }
+}
+
+async function submitScore(name, realTime, gameTime) {
+  if (!LEADERBOARD_URL) return false;
+  try {
+    const resp = await fetch(LEADERBOARD_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ name, realTime, gameTime }),
+    });
+    return resp.ok;
+  } catch (e) {
+    console.warn('Leaderboard submit failed:', e);
+    return false;
+  }
+}
+
+// ── UI helpers ──────────────────────────────────────────────────────
+
+function buildLeaderboardHTML(scores, currentRealTime) {
+  const top10 = scores.slice(0, 10);
+  let rank = -1;
+  if (currentRealTime && currentRealTime > 0) {
+    rank = scores.findIndex(s => currentRealTime <= s.realTime);
+    if (rank === -1) rank = scores.length; // would be last
+  }
+
+  let html = '<table class="lb-table">';
+  html += '<tr><th>#</th><th>Name</th><th>Real Time</th><th>Game Time</th><th>Date</th></tr>';
+
+  // If current run would rank in top 10, highlight it
+  let inserted = false;
+  let shown = 0;
+  for (let i = 0; i < top10.length && shown < 10; i++) {
+    if (!inserted && rank === i && currentRealTime > 0) {
+      html += `<tr class="lb-you"><td>${i + 1}</td><td>➤ YOU</td>`;
+      html += `<td>${formatRealTime(currentRealTime)}</td>`;
+      html += `<td>${formatGameWorldTime(currentRealTime)}</td>`;
+      html += `<td>now</td></tr>`;
+      inserted = true;
+      shown++;
+      if (shown >= 10) break;
+    }
+    html += `<tr><td>${inserted ? i + 2 : i + 1}</td>`;
+    html += `<td>${escHTML(top10[i].name)}</td>`;
+    html += `<td>${formatRealTime(top10[i].realTime)}</td>`;
+    html += `<td>${top10[i].gameTime}</td>`;
+    html += `<td>${top10[i].date}</td></tr>`;
+    shown++;
+  }
+  // If not inserted yet and room remains
+  if (!inserted && shown < 10 && currentRealTime > 0) {
+    html += `<tr class="lb-you"><td>${shown + 1}</td><td>➤ YOU</td>`;
+    html += `<td>${formatRealTime(currentRealTime)}</td>`;
+    html += `<td>${formatGameWorldTime(currentRealTime)}</td>`;
+    html += `<td>now</td></tr>`;
+  }
+
+  html += '</table>';
+
+  if (rank >= 0 && rank < scores.length) {
+    html += `<div class="lb-rank">You'd be #${rank + 1} of ${scores.length} runs!</div>`;
+  } else if (scores.length > 0 && currentRealTime > 0) {
+    html += `<div class="lb-rank">You'd be #${scores.length + 1} of ${scores.length} runs</div>`;
+  }
+
+  return html;
+}
+
+function escHTML(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ── Main entry: called from endGame() ───────────────────────────────
+
+async function showLeaderboard(realTime) {
+  const lbDiv = document.getElementById('leaderboard');
+  const lbPrompt = document.getElementById('lb-prompt');
+  if (!LEADERBOARD_URL) {
+    lbDiv.innerHTML = '<div style="color:#667;font-size:13px">Leaderboard not configured (no LEADERBOARD_URL set).</div>';
+    lbPrompt.style.display = 'none';
+    return;
+  }
+
+  lbDiv.innerHTML = '<div style="color:#667">Loading leaderboard…</div>';
+
+  const scores = await fetchLeaderboard();
+  lbDiv.innerHTML = buildLeaderboardHTML(scores, realTime);
+
+  // Show submit prompt only if player finished
+  if (realTime && realTime > 0) {
+    lbPrompt.style.display = 'block';
+    const btn = document.getElementById('lb-submit-btn');
+    const nameInput = document.getElementById('lb-name');
+    btn.onclick = async () => {
+      const name = nameInput.value.trim() || 'Anonymous';
+      const gameTime = formatGameWorldTime(realTime);
+      btn.disabled = true;
+      btn.textContent = 'Submitting…';
+      const ok = await submitScore(name, parseFloat(realTime.toFixed(2)), gameTime);
+      if (ok) {
+        btn.textContent = '✓ Submitted!';
+        // Refresh leaderboard
+        const updated = await fetchLeaderboard();
+        lbDiv.innerHTML = buildLeaderboardHTML(updated, realTime);
+      } else {
+        btn.textContent = 'Failed — try again';
+        btn.disabled = false;
+      }
+    };
+  } else {
+    lbPrompt.style.display = 'none';
+  }
+}
+
+
 // ── src/render.js ───────────────────────────────────────────────
 // ====================================================================
 // RENDER — All drawing functions
@@ -15387,7 +15569,7 @@ function drawPlayer(p, now) {
 function updateHUD() {
   const elapsed = (Date.now() - gameStartTime) / 1000;
   const m = Math.floor(elapsed / 60);
-  const s = Math.floor(elapsed % 60).toString().padStart(2, '0');
+  const s = (elapsed % 60).toFixed(2).padStart(5, '0');
   document.getElementById('race-timer').textContent = `${m}:${s}`;
 
   const st = new Date(simTimeMs);
@@ -15403,14 +15585,14 @@ function updateHUD() {
     const pct = Math.max(0, Math.min(100,
       ((p.lat - startLat) / totalDeg) * 100)).toFixed(0);
     document.getElementById('p1-progress').textContent =
-      p.finished ? `FINISHED (${p.finishTime.toFixed(1)}s)` : `${pct}%`;
+      p.finished ? `FINISHED (${formatRealTime(p.finishTime)})` : `${pct}%`;
   } else {
     for (let i = 0; i < 2; i++) {
       const p = players[i];
       const pct = Math.max(0, Math.min(100,
         ((p.lat - startLat) / totalDeg) * 100)).toFixed(0);
       document.getElementById(`p${i + 1}-progress`).textContent =
-        p.finished ? `FINISHED (${p.finishTime.toFixed(1)}s)` : `${pct}%`;
+        p.finished ? `FINISHED (${formatRealTime(p.finishTime)})` : `${pct}%`;
     }
   }
 }
@@ -15592,13 +15774,17 @@ function endGame() {
   zone.style.display = 'none';
   if (joystickManager) { joystickManager.destroy(); joystickManager = null; }
 
+  let bestFinishTime = null;
+
   if (gameMode === 'solo') {
     const p = players[0];
-    const t = p.finishTime ? p.finishTime.toFixed(1) + 's' : 'DNF';
+    const rt = p.finishTime ? formatRealTime(p.finishTime) : 'DNF';
+    const gt = p.finishTime ? formatGameWorldTime(p.finishTime) : '—';
     document.getElementById('winner-text').innerHTML =
       '<span class="p1c">🏁 Tim &amp; Madelyn finished!</span>';
-    document.getElementById('finish-times').textContent =
-      `Time: ${t}\nTim's best time was 26.6 seconds.`;
+    document.getElementById('finish-times').innerHTML =
+      `Real time: ${rt}\nGame-world time: ${gt}`;
+    bestFinishTime = p.finishTime || null;
   } else {
     const [p1, p2] = players;
     let wh;
@@ -15615,10 +15801,20 @@ function endGame() {
     }
     document.getElementById('winner-text').innerHTML = wh;
 
-    const t1 = p1.finishTime ? p1.finishTime.toFixed(1) + 's' : 'DNF';
-    const t2 = p2.finishTime ? p2.finishTime.toFixed(1) + 's' : 'DNF';
-    document.getElementById('finish-times').textContent = `Tim: ${t1}  |  Madelyn: ${t2}`;
+    const rt1 = p1.finishTime ? formatRealTime(p1.finishTime) : 'DNF';
+    const rt2 = p2.finishTime ? formatRealTime(p2.finishTime) : 'DNF';
+    const gt1 = p1.finishTime ? formatGameWorldTime(p1.finishTime) : '—';
+    const gt2 = p2.finishTime ? formatGameWorldTime(p2.finishTime) : '—';
+    document.getElementById('finish-times').innerHTML =
+      `Tim: ${rt1} (${gt1})  |  Madelyn: ${rt2} (${gt2})`;
+    bestFinishTime = Math.min(
+      p1.finishTime || Infinity, p2.finishTime || Infinity
+    );
+    if (bestFinishTime === Infinity) bestFinishTime = null;
   }
+
+  // Fetch and display leaderboard
+  showLeaderboard(bestFinishTime);
 }
 
 function gameLoop(ts) {

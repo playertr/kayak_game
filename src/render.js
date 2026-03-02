@@ -317,7 +317,7 @@ function drawPlayer(p, now) {
 function updateHUD() {
   const elapsed = (Date.now() - gameStartTime) / 1000;
   const m = Math.floor(elapsed / 60);
-  const s = Math.floor(elapsed % 60).toString().padStart(2, '0');
+  const s = (elapsed % 60).toFixed(2).padStart(5, '0');
   document.getElementById('race-timer').textContent = `${m}:${s}`;
 
   const st = new Date(simTimeMs);
@@ -333,14 +333,14 @@ function updateHUD() {
     const pct = Math.max(0, Math.min(100,
       ((p.lat - startLat) / totalDeg) * 100)).toFixed(0);
     document.getElementById('p1-progress').textContent =
-      p.finished ? `FINISHED (${p.finishTime.toFixed(1)}s)` : `${pct}%`;
+      p.finished ? `FINISHED (${formatRealTime(p.finishTime)})` : `${pct}%`;
   } else {
     for (let i = 0; i < 2; i++) {
       const p = players[i];
       const pct = Math.max(0, Math.min(100,
         ((p.lat - startLat) / totalDeg) * 100)).toFixed(0);
       document.getElementById(`p${i + 1}-progress`).textContent =
-        p.finished ? `FINISHED (${p.finishTime.toFixed(1)}s)` : `${pct}%`;
+        p.finished ? `FINISHED (${formatRealTime(p.finishTime)})` : `${pct}%`;
     }
   }
 }

@@ -39,6 +39,7 @@ kayak_game/
 │   ├── land.js             Ray-cast point-in-polygon collision
 │   ├── entities.js         Players, orcas, ferries
 │   ├── update.js           Physics, movement, camera tracking
+│   ├── leaderboard.js      Fetch/display/submit to Google Sheets
 │   ├── render.js           All canvas drawing
 │   └── game.js             Input handling, lifecycle, boot
 ├── data/
@@ -50,7 +51,10 @@ kayak_game/
 │   ├── fetch-coastlines.js Overpass API → data/coastline-data.js
 │   ├── fetch-tides.js      NOAA CO-OPS API → data/noaa-tide-data.json
 │   ├── screenshot-test.js  Headless Chrome integration test
-│   └── diagnose-land.js    isLand() diagnostic utility
+│   ├── diagnose-land.js    isLand() diagnostic utility
+│   └── apps-script/
+│       ├── Code.gs         Google Apps Script backend for leaderboard
+│       └── leaderboard-header.csv  Column headers for the Sheet
 └── screenshots/            Test screenshots (auto-generated)
 ```
 
@@ -121,6 +125,50 @@ npm install puppeteer-core              # one-time
 node scripts/screenshot-test.js         # headless Chrome: screenshots + error check
 node scripts/diagnose-land.js           # verify isLand() at key coordinates
 ```
+
+## Leaderboard
+
+The game includes an optional leaderboard powered by a Google Sheet +
+Apps Script web app. No API key is needed—everything works via a simple
+GET/POST to an Apps Script deployment.
+
+### Setting up your own backend
+
+1. **Create a Google Sheet** with a single header row:
+   ```
+   Name,RealTime,GameTime,Date
+   ```
+   (A template is provided in `scripts/apps-script/leaderboard-header.csv`.)
+
+2. **Open Extensions → Apps Script** in the Sheet and replace the
+   default code with the contents of `scripts/apps-script/Code.gs`.
+
+3. **Deploy as a web app:**
+   - Click **Deploy → New deployment**.
+   - Set *Execute as* = **Me** and *Who has access* = **Anyone**.
+   - Click **Deploy** and copy the web-app URL.
+
+4. **Paste the URL** into `src/leaderboard.js`:
+   ```js
+   const LEADERBOARD_URL = 'https://script.google.com/macros/s/…/exec';
+   ```
+
+5. **Rebuild** the game:
+   ```bash
+   node scripts/bundle.js --check
+   ```
+
+### API reference
+
+| Method | Endpoint | Params | Response |
+|--------|----------|--------|----------|
+| GET    | `?action=getScores` | — | `{scores: [{name,realTime,gameTime,date}, …]}` (top 10, fastest first) |
+| POST   | — | JSON body: `{name, realTime, gameTime}` | `{result:"ok"}` |
+
+`realTime` is elapsed real-world seconds (float, hundredths precision).
+`gameTime` is game-world elapsed seconds (`realTime × TIME_ACCEL`).
+
+POST requests use `Content-Type: text/plain` to avoid CORS preflight.
 
 ## Credits
 
